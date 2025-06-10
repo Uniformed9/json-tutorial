@@ -108,6 +108,7 @@ static void test_parse_invalid_value() {
     TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "inf");
     TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "NAN");
     TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "nan");
+    TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "1df");
 }
 
 static void test_parse_root_not_singular() {
