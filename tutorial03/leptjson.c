@@ -89,6 +89,7 @@ static int lept_parse_number(lept_context* c, lept_value* v) {
 static int lept_parse_string(lept_context* c, lept_value* v) {
     size_t head = c->top, len;
     const char* p;
+    char nxt;
     EXPECT(c, '\"');
     p = c->json;
     for (;;) {
@@ -102,7 +103,25 @@ static int lept_parse_string(lept_context* c, lept_value* v) {
             case '\0':
                 c->top = head;
                 return LEPT_PARSE_MISS_QUOTATION_MARK;
+            case '\\':
+                //这里要处理所有转义问题，\\后面有很多种可能
+                nxt = *p++;
+                switch (nxt) {
+                case '\"':PUTC(c, '\"'); break;
+                case '\/':PUTC(c, '\/'); break;
+                case '\\':PUTC(c, '\\'); break;
+                case 'b':PUTC(c, '\b'); break;
+                case 'f':PUTC(c, '\f'); break;
+                case 'n':PUTC(c, '\n'); break;
+                case 'r':PUTC(c, '\r'); break;
+                case 't':PUTC(c, '\t'); break;
+                default:
+                    //说明是错误的转义序列
+                    return LEPT_PARSE_INVALID_STRING_ESCAPE;
+                }
+                break;
             default:
+                if ((ch >= 0 && ch <= 31) || ch == 127)return LEPT_PARSE_INVALID_STRING_CHAR;
                 PUTC(c, ch);
         }
     }
@@ -154,11 +173,18 @@ lept_type lept_get_type(const lept_value* v) {
 
 int lept_get_boolean(const lept_value* v) {
     /* \TODO */
-    return 0;
+    assert(v != NULL);
+    return v->type;
 }
 
 void lept_set_boolean(lept_value* v, int b) {
+    assert(v != NULL);
     /* \TODO */
+    if (b == 0) {
+        v->type = LEPT_FALSE;
+    }else if(b==1) {
+        v->type = LEPT_TRUE;
+    }
 }
 
 double lept_get_number(const lept_value* v) {
@@ -168,6 +194,9 @@ double lept_get_number(const lept_value* v) {
 
 void lept_set_number(lept_value* v, double n) {
     /* \TODO */
+    assert(v != NULL);
+    v->type = LEPT_NUMBER;
+    v->u.n = n;
 }
 
 const char* lept_get_string(const lept_value* v) {
