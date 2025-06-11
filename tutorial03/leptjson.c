@@ -5,6 +5,11 @@
 #include <stdlib.h>  /* NULL, malloc(), realloc(), free(), strtod() */
 #include <string.h>  /* memcpy() */
 
+#ifdef _WINDOWS
+#define _CRTDBG_MAP_ALLOC
+#include <crtdbg.h>
+#endif
+
 #ifndef LEPT_PARSE_STACK_INIT_SIZE
 #define LEPT_PARSE_STACK_INIT_SIZE 256
 #endif
@@ -121,7 +126,10 @@ static int lept_parse_string(lept_context* c, lept_value* v) {
                 }
                 break;
             default:
-                if ((ch >= 0 && ch <= 31) || ch == 127)return LEPT_PARSE_INVALID_STRING_CHAR;
+                if ((ch >= 0 && ch <= 31) || ch == 127) {
+                    c->top = head;
+                    return LEPT_PARSE_INVALID_STRING_CHAR;
+                }
                 PUTC(c, ch);
         }
     }
@@ -178,7 +186,7 @@ int lept_get_boolean(const lept_value* v) {
 }
 
 void lept_set_boolean(lept_value* v, int b) {
-    assert(v != NULL);
+   /* lept_free(v);*/
     /* \TODO */
     if (b == 0) {
         v->type = LEPT_FALSE;
@@ -194,7 +202,7 @@ double lept_get_number(const lept_value* v) {
 
 void lept_set_number(lept_value* v, double n) {
     /* \TODO */
-    assert(v != NULL);
+    lept_free(v);
     v->type = LEPT_NUMBER;
     v->u.n = n;
 }

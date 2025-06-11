@@ -7,6 +7,11 @@ static int main_ret = 0;
 static int test_count = 0;
 static int test_pass = 0;
 
+#ifdef _WINDOWS
+#define _CRTDBG_MAP_ALLOC
+#include <crtdbg.h>
+#endif
+
 #define EXPECT_EQ_BASE(equality, expect, actual, format) \
     do {\
         test_count++;\
@@ -242,9 +247,14 @@ static void test_parse() {
 }
 
 int main() {
+#ifdef _WINDOWS
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+   /* _CrtSetBreakAlloc(98);*/
+#endif
     test_parse();
     printf("%d/%d (%3.2f%%) passed\n", test_pass, test_count, test_pass * 100.0 / test_count);
     
-    
+   
     return main_ret;
+ 
 }
