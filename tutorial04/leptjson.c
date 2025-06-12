@@ -1,6 +1,7 @@
 #ifdef _WINDOWS
 #define _CRTDBG_MAP_ALLOC
 #include <crtdbg.h>
+#include<stdint.h>
 #endif
 #include "leptjson.h"
 #include <assert.h>  /* assert() */
@@ -92,11 +93,51 @@ static int lept_parse_number(lept_context* c, lept_value* v) {
 
 static const char* lept_parse_hex4(const char* p, unsigned* u) {
     /* \TODO */
+    //如果合法就返回p，否则为null
+    uint16_t num1 = 0;
+    char c;
+    int k = 4;
+    while (k--) {
+        c = *p++;
+        if (c <= '9' && c >= '0') {
+            num1 = (num1 << 4) | (c - '0');
+        }
+        else if (c <= 'F' && c >= 'A') {
+            num1 = (num1 << 4) | (c - 'A'+10);
+        }
+        else if (c <= 'f' && c >= 'a') {
+            num1 = (num1 << 4) | (c - 'a' + 10);
+        }
+        else {
+            return NULL;
+        }
+    }
+    *u = num1;
     return p;
 }
 
 static void lept_encode_utf8(lept_context* c, unsigned u) {
     /* \TODO */
+    //这里要putc
+    assert(u <= 0x10FFFF);
+    if (0 <= u && u <= 0x7F) {
+        PUTC(c, u);
+    }
+    else if (0x80 <= u && u <= 0x07FF) {
+        PUTC(c, 0xC0|((u>>6)&0xFF));
+        PUTC(c, 0x80 |(u& 0x3F));
+    }
+    else if (0x0800 <= u && u <= 0xFFFF) {
+        PUTC(c,0xE0 | ((u >> 12) & 0xFF));
+        PUTC(c,0x80 | ((u >> 6) & 0x3F));
+        PUTC(c,0x80 | (u & 0x3F));
+    }
+    else if(0x10000 <= u && u <= 0x10FFFF) {
+        PUTC(c, 0xF0 | ((u >> 18) & 0xFF));
+        PUTC(c, 0x80 | ((u >> 12) & 0x3F));
+        PUTC(c, 0x80 | ((u >> 6) & 0x3F));
+        PUTC(c, 0x80 | (u & 0x3F));
+    }
 }
 
 #define STRING_ERROR(ret) do { c->top = head; return ret; } while(0)
@@ -104,6 +145,7 @@ static void lept_encode_utf8(lept_context* c, unsigned u) {
 static int lept_parse_string(lept_context* c, lept_value* v) {
     size_t head = c->top, len;
     unsigned u;
+    unsigned u2;
     const char* p;
     EXPECT(c, '\"');
     p = c->json;
@@ -127,8 +169,29 @@ static int lept_parse_string(lept_context* c, lept_value* v) {
                     case 't':  PUTC(c, '\t'); break;
                     case 'u':
                         if (!(p = lept_parse_hex4(p, &u)))
+                            //这里是处理一个字节
                             STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX);
                         /* \TODO surrogate handling */
+                        //这里编码成字节
+                        if (0xD800 <= u && u <= 0xDBFF) {
+                            //处理代理对,后面是\\u
+                            if (*p++ != '\\') {
+                                STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE);
+                              
+                            }
+                            if (*p++ != 'u') {
+                                STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE);
+                           
+                            }
+                            if (!(p = lept_parse_hex4(p, &u2))) {
+                                STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX);
+                            }
+                            if (0xDC00 <=u2&&u2<= 0xDFFF) {
+                                u = 0x10000 + (u - 0xD800) * 0x400 + (u2 - 0xDC00);
+                            }else {
+                                STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE);
+                            }
+                        }
                         lept_encode_utf8(c, u);
                         break;
                     default:
