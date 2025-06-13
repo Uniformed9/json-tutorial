@@ -184,9 +184,11 @@ static int lept_parse_string(lept_context* c, lept_value* v) {
 static int lept_parse_value(lept_context* c, lept_value* v);
 
 static int lept_parse_array(lept_context* c, lept_value* v) {
+    //一个逗号，没有]
     size_t size = 0;
     int ret;
     EXPECT(c, '[');
+    lept_parse_whitespace(c);
     if (*c->json == ']') {
         c->json++;
         v->type = LEPT_ARRAY;
@@ -194,13 +196,27 @@ static int lept_parse_array(lept_context* c, lept_value* v) {
         v->u.a.e = NULL;
         return LEPT_PARSE_OK;
     }
+
     for (;;) {
         lept_value e;
         lept_init(&e);
+
+        lept_parse_whitespace(c);
+        if (*c->json == ']') {
+            size *= sizeof(lept_value);
+            lept_context_pop(c, size);
+            return LEPT_PARSE_INVALID_VALUE;
+        }
         if ((ret = lept_parse_value(c, &e)) != LEPT_PARSE_OK)
+        {
+            size *= sizeof(lept_value);
+            lept_context_pop(c, size);
             return ret;
+        }
+           
         memcpy(lept_context_push(c, sizeof(lept_value)), &e, sizeof(lept_value));
         size++;
+        lept_parse_whitespace(c);
         if (*c->json == ',')
             c->json++;
         else if (*c->json == ']') {
@@ -211,8 +227,12 @@ static int lept_parse_array(lept_context* c, lept_value* v) {
             memcpy(v->u.a.e = (lept_value*)malloc(size), lept_context_pop(c, size), size);
             return LEPT_PARSE_OK;
         }
-        else
+        else {
+            size *= sizeof(lept_value);
+            lept_context_pop(c, size);
             return LEPT_PARSE_MISS_COMMA_OR_SQUARE_BRACKET;
+        }
+           
     }
 }
 
@@ -253,6 +273,13 @@ void lept_free(lept_value* v) {
     assert(v != NULL);
     if (v->type == LEPT_STRING)
         free(v->u.s.s);
+    if (v->type == LEPT_ARRAY) {
+        for (int i = 0; i++; i < v->u.a.size) {
+            lept_free(v->u.a.size + i * sizeof(lept_value));
+        }
+        v->u.a.size = 0;
+        free(v->u.a.size);
+    }
     v->type = LEPT_NULL;
 }
 

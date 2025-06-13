@@ -119,7 +119,6 @@ static const char* lept_parse_hex4(const char* p, unsigned* u) {
 static void lept_encode_utf8(lept_context* c, unsigned u) {
     /* \TODO */
     //ÕâÀïÒªputc
-    assert(u <= 0x10FFFF);
     if (0 <= u && u <= 0x7F) {
         PUTC(c, u);
     }
@@ -133,6 +132,7 @@ static void lept_encode_utf8(lept_context* c, unsigned u) {
         PUTC(c,0x80 | (u & 0x3F));
     }
     else if(0x10000 <= u && u <= 0x10FFFF) {
+        assert(u <= 0x10FFFF);
         PUTC(c, 0xF0 | ((u >> 18) & 0xFF));
         PUTC(c, 0x80 | ((u >> 12) & 0x3F));
         PUTC(c, 0x80 | ((u >> 6) & 0x3F));
