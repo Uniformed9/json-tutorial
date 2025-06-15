@@ -347,7 +347,97 @@ int lept_parse(lept_value* v, const char* json) {
 }
 
 static void lept_stringify_string(lept_context* c, const char* s, size_t len) {
-    /* ... */
+    /* 将s复制一份到c->stack中，len是字符串长度，不包括‘\0’ */
+    //读到20要还原成\\u0020
+    
+    const unsigned char* p=s;
+    unsigned u;
+    unsigned u2;
+    PUTC(c, '\"');
+    for (size_t i = 0; i < len; i++) {
+        if (*p == '\b') {
+            PUTC(c, '\\');
+            PUTC(c, 'b');
+        }
+        else if (*p == '\f') {
+            PUTC(c, '\\');
+            PUTC(c, 'f');
+        }
+        else if (*p == '\n') {
+            PUTC(c, '\\');
+            PUTC(c, 'n');
+        }
+        else if (*p == '\r') {
+            PUTC(c, '\\');
+            PUTC(c, 'r');
+        }
+        else if (*p == '\t') {
+            PUTC(c, '\\');
+            PUTC(c, 't');
+        }
+        else if (*p == '\"') {
+            PUTC(c, '\\');
+            PUTC(c, '"');
+        }
+      /*  else if (*p == '\/') {
+            PUTC(c, '\\');
+            PUTC(c, '/');
+        }*/
+        else if (*p == '\\') {
+            PUTC(c, '\\');
+            PUTC(c, '\\');
+        }
+        else if (*p < 0x20) {
+            PUTC(c, '\\');
+            PUTC(c, 'u');
+            sprintf(lept_context_push(c, sizeof(char) * 4), "%04X", *p);
+        }
+        else if (*p >= 0xF0) {
+            //四字节,首先转换成码点
+            u = 0;
+            u = u | (*p++ & 0x7);
+            u = (u << 6) | (*p++ & 0xBF);
+            u = (u << 6) | (*p++ & 0xBF);
+            u = (u << 6) | (*p & 0xBF);
+            //根据公式切换
+            u2 = (u-0x10000)&0x3FF;
+            u = (u - 0x10000) >> 10;
+           //再写入
+            PUTC(c, '\\');
+            PUTC(c, 'u');
+            sprintf(lept_context_push(c, sizeof(char) * 4), "%04X", u);
+            PUTC(c, '\\');
+            PUTC(c, 'u');
+            sprintf(lept_context_push(c, sizeof(char) * 4), "%04X", u2);
+        }
+        else if (*p >= 0xE0) {
+            //三字节
+            u = 0;
+            u = u | (*p++ & 0xF);
+            u = (u << 6) | (*p++ & 0xBF);
+            u = (u << 6) | (*p & 0xBF);
+
+            PUTC(c, '\\');
+            PUTC(c, 'u');
+            sprintf(lept_context_push(c, sizeof(char) * 4), "%04X", u);
+        }
+        else if (*p >= 0xC0) {
+            //二字节
+             //三字节
+            u = 0;
+            u = u | (*p++ & 0x1F);
+            u = (u << 6) | (*p & 0xBF);
+          
+            PUTC(c, '\\');
+            PUTC(c, 'u');
+            sprintf(lept_context_push(c, sizeof(char) * 4), "%04X", u);
+        }
+        else {
+            PUTC(c, *p);
+        }
+        p++;
+    }
+    PUTC(c, '\"');
 }
 
 static void lept_stringify_value(lept_context* c, const lept_value* v) {
@@ -359,9 +449,25 @@ static void lept_stringify_value(lept_context* c, const lept_value* v) {
         case LEPT_STRING: lept_stringify_string(c, v->u.s.s, v->u.s.len); break;
         case LEPT_ARRAY:
             /* ... */
+            PUTC(c, '[');
+            for (int i = 0; i < v->u.a.size; i++) {
+                lept_stringify_value(c,&v->u.a.e[i]);
+                if(i+1< v->u.a.size)
+                PUTC(c, ',');
+            }
+            PUTC(c, ']');
             break;
         case LEPT_OBJECT:
             /* ... */
+            PUTC(c, '{');
+            for (int i = 0; i < v->u.o.size; i++) {
+                lept_stringify_string(c, v->u.o.m[i].k, v->u.o.m[i].klen);
+                PUTC(c, ':');
+                lept_stringify_value(c, &v->u.o.m[i].v);
+                if (i + 1 < v->u.a.size)
+                    PUTC(c, ',');
+            }
+            PUTC(c, '}');
             break;
         default: assert(0 && "invalid type");
     }
